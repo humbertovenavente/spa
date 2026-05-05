@@ -406,8 +406,13 @@ export class PersonalComponent {
   savingId: string | null = null;
 
   showAllCategories = signal(false);
+  sortedCategories = computed(() =>
+    [...this.ps.categories()].sort(
+      (a, b) => this.ps.spentByCategory(b.id) - this.ps.spentByCategory(a.id)
+    )
+  );
   visibleCategories = computed(() => {
-    const all = this.ps.categories();
+    const all = this.sortedCategories();
     return this.showAllCategories() ? all : all.slice(0, 3);
   });
 
