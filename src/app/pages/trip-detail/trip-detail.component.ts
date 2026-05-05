@@ -143,11 +143,21 @@ interface SplitInput {
                        [name]="'sp_' + s.memberId" />
               </li>
             </ul>
-            <div class="mt-2 text-xs text-slate-500">
-              Suma: <b [class.text-rose-600]="!sumOk()">
+            <div class="mt-2 text-xs">
+              <span class="text-slate-500">Suma:</span>
+              <b [class.text-emerald-600]="sumOk()"
+                 [class.text-rose-600]="!sumOk()">
                 {{ splitSum() | currency:trip()!.currency:'symbol':'1.2-2' }}
-              </b> /
-              {{ (expAmount || 0) | currency:trip()!.currency:'symbol':'1.2-2' }}
+              </b>
+              <span class="text-slate-500">
+                / {{ (expAmount || 0) | currency:trip()!.currency:'symbol':'1.2-2' }}
+              </span>
+              <span *ngIf="(expAmount || 0) - splitSum() > 0.01" class="text-amber-600 ml-1">
+                · Falta {{ ((expAmount || 0) - splitSum()) | currency:trip()!.currency:'symbol':'1.2-2' }}
+              </span>
+              <span *ngIf="splitSum() - (expAmount || 0) > 0.01" class="text-rose-600 ml-1">
+                · Excede por {{ (splitSum() - (expAmount || 0)) | currency:trip()!.currency:'symbol':'1.2-2' }}
+              </span>
             </div>
           </div>
 
@@ -322,9 +332,16 @@ export class TripDetailComponent {
   }
 
   setSplitAmount(i: number, value: number): void {
-    this.splits.update((arr) =>
-      arr.map((s, idx) => (idx === i ? { ...s, amount: Number(value) || 0 } : s))
-    );
+    const total = Number(this.expAmount) || 0;
+    this.splits.update((arr) => {
+      const others = arr.reduce(
+        (s, x, idx) => (idx !== i && x.selected ? s + (Number(x.amount) || 0) : s),
+        0
+      );
+      const maxAllowed = Math.max(0, total - others);
+      const next = Math.max(0, Math.min(Number(value) || 0, maxAllowed));
+      return arr.map((s, idx) => (idx === i ? { ...s, amount: next } : s));
+    });
   }
 
   async submitExpense(): Promise<void> {
