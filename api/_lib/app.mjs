@@ -1,6 +1,13 @@
 import express from 'express';
 import cors from 'cors';
-import { Member, Budget, Payment, Settings } from './models.mjs';
+import {
+  Member,
+  Budget,
+  Payment,
+  Settings,
+  PersonalProfile,
+  PersonalExpense
+} from './models.mjs';
 
 const DEFAULT_ALLOWED_ORIGINS = [
   'http://localhost:4200',
@@ -153,6 +160,90 @@ app.delete(
   '/api/payments/:id',
   wrap(async (req, res) => {
     await Payment.findByIdAndDelete(req.params.id);
+    res.status(204).end();
+  })
+);
+
+// ----- Personal -----
+
+async function getPersonalProfile() {
+  let p = await PersonalProfile.findOne({ key: 'global' });
+  if (!p) p = await PersonalProfile.create({ key: 'global' });
+  return p;
+}
+
+app.get(
+  '/api/personal',
+  wrap(async (_req, res) => {
+    const [profile, expenses] = await Promise.all([
+      getPersonalProfile(),
+      PersonalExpense.find().sort({ date: -1, createdAt: -1 })
+    ]);
+    res.json({
+      profile: profile.toJSON(),
+      expenses: expenses.map((e) => e.toJSON())
+    });
+  })
+);
+
+app.put(
+  '/api/personal',
+  wrap(async (req, res) => {
+    const { income, currency } = req.body;
+    const p = await getPersonalProfile();
+    if (income != null) p.income = Number(income) || 0;
+    if (currency) p.currency = currency;
+    await p.save();
+    res.json(p.toJSON());
+  })
+);
+
+app.post(
+  '/api/personal/categories',
+  wrap(async (req, res) => {
+    const { name, monthlyAmount } = req.body;
+    if (!name) return res.status(400).json({ error: 'Falta nombre' });
+    const p = await getPersonalProfile();
+    p.categories.push({ name, monthlyAmount: Number(monthlyAmount) || 0 });
+    await p.save();
+    const cat = p.categories[p.categories.length - 1];
+    res.status(201).json(cat.toJSON());
+  })
+);
+
+app.delete(
+  '/api/personal/categories/:id',
+  wrap(async (req, res) => {
+    const id = req.params.id;
+    const p = await getPersonalProfile();
+    p.categories = p.categories.filter((c) => c._id.toString() !== id);
+    await p.save();
+    await PersonalExpense.deleteMany({ categoryId: id });
+    res.status(204).end();
+  })
+);
+
+app.post(
+  '/api/personal/expenses',
+  wrap(async (req, res) => {
+    const { categoryId, amount, date, note } = req.body;
+    if (!categoryId || amount == null || !date) {
+      return res.status(400).json({ error: 'Faltan campos del gasto' });
+    }
+    const e = await PersonalExpense.create({
+      categoryId,
+      amount: Number(amount),
+      date,
+      note
+    });
+    res.status(201).json(e.toJSON());
+  })
+);
+
+app.delete(
+  '/api/personal/expenses/:id',
+  wrap(async (req, res) => {
+    await PersonalExpense.findByIdAndDelete(req.params.id);
     res.status(204).end();
   })
 );
