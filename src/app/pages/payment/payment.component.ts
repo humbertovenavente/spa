@@ -13,8 +13,11 @@ import { PAYMENT_METHODS } from '../../models/family.model';
     <section class="space-y-4">
       <ng-container *ngIf="member(); else missing">
         <div class="card">
-          <p class="text-xs uppercase tracking-wide text-slate-500">Página personal de pago</p>
-          <h2 class="text-2xl font-semibold text-slate-900 mt-1">{{ member()!.name }}</h2>
+          <a routerLink="/aporta"
+             class="text-xs font-medium text-brand-600 hover:text-brand-700 underline">
+            ← Cambiar de persona
+          </a>
+          <h2 class="text-2xl font-semibold text-slate-900 mt-2">{{ member()!.name }}</h2>
           <p class="text-sm text-slate-500 mt-1">
             Aquí puedes registrar lo que vas pagando del presupuesto familiar.
           </p>

@@ -114,28 +114,35 @@ interface Row {
               </div>
             </div>
 
-            <details *ngIf="b.assignments.length" class="mt-3" [open]="b.id === fs.activeBudget()?.id">
+            <div *ngIf="b.id === fs.activeBudget()?.id && b.assignments.length"
+                 class="mt-3 rounded-lg bg-brand-50 border border-brand-200 p-3">
+              <p class="text-xs font-medium text-brand-700">Link para compartir</p>
+              <p class="text-xs text-slate-600 mt-0.5">
+                Quien lo abra elige su nombre y registra sus pagos.
+              </p>
+              <div class="mt-2 flex items-center gap-2 text-xs">
+                <input type="text" readonly
+                       [value]="generalLink()"
+                       class="flex-1 min-w-0 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-slate-700 truncate" />
+                <button type="button"
+                        class="font-medium text-brand-600 hover:text-brand-700 underline shrink-0"
+                        (click)="copyGeneral()">
+                  {{ copiedGeneral ? 'Copiado' : 'Copiar' }}
+                </button>
+              </div>
+            </div>
+
+            <details *ngIf="b.assignments.length" class="mt-3">
               <summary class="text-xs text-brand-600 hover:text-brand-700 cursor-pointer select-none">
                 Ver desglose
               </summary>
               <ul class="mt-2 divide-y divide-slate-100">
-                <li *ngFor="let a of b.assignments" class="py-2.5 first:pt-0">
-                  <div class="flex items-center justify-between gap-3">
-                    <span class="font-medium text-slate-900 truncate">{{ memberName(a.memberId) }}</span>
-                    <span class="text-sm font-medium text-slate-700 shrink-0">
-                      {{ a.amount | currency:b.currency:'symbol':'1.2-2' }}
-                    </span>
-                  </div>
-                  <div class="mt-1.5 flex items-center gap-3 text-xs">
-                    <input type="text" readonly
-                           [value]="linkFor(a.memberId)"
-                           class="flex-1 min-w-0 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-slate-600 truncate" />
-                    <button type="button"
-                            class="font-medium text-brand-600 hover:text-brand-700 underline shrink-0"
-                            (click)="copy(a.memberId)">
-                      {{ copiedId === a.memberId ? 'Copiado' : 'Copiar' }}
-                    </button>
-                  </div>
+                <li *ngFor="let a of b.assignments"
+                    class="py-2 first:pt-0 flex items-center justify-between gap-3">
+                  <span class="font-medium text-slate-900 truncate">{{ memberName(a.memberId) }}</span>
+                  <span class="text-sm font-medium text-slate-700 shrink-0">
+                    {{ a.amount | currency:b.currency:'symbol':'1.2-2' }}
+                  </span>
                 </li>
               </ul>
             </details>
@@ -212,15 +219,15 @@ export class BudgetComponent {
     return this.fs.getMember(id)?.name ?? '—';
   }
 
-  linkFor(memberId: string): string {
-    return `${location.origin}${location.pathname}#/pagar/${memberId}`;
+  generalLink(): string {
+    return `${location.origin}${location.pathname}#/aporta`;
   }
 
-  copiedId: string | null = null;
-  copy(memberId: string): void {
-    navigator.clipboard?.writeText(this.linkFor(memberId)).then(() => {
-      this.copiedId = memberId;
-      setTimeout(() => (this.copiedId = null), 1800);
+  copiedGeneral = false;
+  copyGeneral(): void {
+    navigator.clipboard?.writeText(this.generalLink()).then(() => {
+      this.copiedGeneral = true;
+      setTimeout(() => (this.copiedGeneral = false), 1800);
     });
   }
 

@@ -5,6 +5,7 @@ export const routes: Routes = [
   { path: 'familia', loadComponent: () => import('./pages/members/members.component').then((m) => m.MembersComponent) },
   { path: 'presupuesto', loadComponent: () => import('./pages/budget/budget.component').then((m) => m.BudgetComponent) },
   { path: 'resumen', loadComponent: () => import('./pages/summary/summary.component').then((m) => m.SummaryComponent) },
+  { path: 'aporta', loadComponent: () => import('./pages/picker/picker.component').then((m) => m.PickerComponent) },
   { path: 'pagar/:memberId', loadComponent: () => import('./pages/payment/payment.component').then((m) => m.PaymentComponent) },
   { path: '**', redirectTo: '' }
 ];

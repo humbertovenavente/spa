@@ -10,7 +10,6 @@ interface Row {
   paid: number;
   remaining: number;
   progress: number;
-  shareUrl: string;
 }
 
 @Component({
@@ -54,6 +53,22 @@ interface Row {
         </p>
       </div>
 
+      <div class="card" *ngIf="fs.activeBudget() && rows().length">
+        <p class="text-xs font-medium text-brand-700">Link general para aportar</p>
+        <p class="text-xs text-slate-600 mt-0.5">
+          Comparte este link. Cada persona elige su nombre y registra sus pagos.
+        </p>
+        <div class="mt-2 flex items-center gap-2 text-xs">
+          <input type="text" readonly [value]="generalLink()"
+                 class="flex-1 min-w-0 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-slate-700 truncate" />
+          <button type="button"
+                  class="font-medium text-brand-600 hover:text-brand-700 underline shrink-0"
+                  (click)="copyGeneral()">
+            {{ copiedGeneral ? 'Copiado' : 'Copiar' }}
+          </button>
+        </div>
+      </div>
+
       <div class="card" *ngIf="rows().length; else empty">
         <h3 class="text-lg font-semibold text-slate-900 mb-3">Por miembro</h3>
         <ul class="space-y-3">
@@ -79,16 +94,11 @@ interface Row {
                      [style.width.%]="r.progress"></div>
               </div>
             </div>
-            <div class="mt-2 flex flex-wrap gap-3">
+            <div class="mt-2">
               <a [routerLink]="['/pagar', r.id]"
                  class="text-xs font-medium text-brand-600 hover:text-brand-700 underline">
                 Abrir página de pago
               </a>
-              <button type="button"
-                      class="text-xs font-medium text-slate-600 hover:text-slate-900 underline"
-                      (click)="copy(r.shareUrl, r.id)">
-                {{ copiedId === r.id ? 'Copiado' : 'Copiar link' }}
-              </button>
             </div>
           </li>
         </ul>
@@ -104,7 +114,6 @@ interface Row {
 })
 export class SummaryComponent {
   fs = inject(FamilyService);
-  copiedId: string | null = null;
 
   currency = computed(() => this.fs.activeCurrency());
 
@@ -124,12 +133,23 @@ export class SummaryComponent {
           assigned: a.amount,
           paid,
           remaining,
-          progress,
-          shareUrl: `${location.origin}${location.pathname}#/pagar/${m.id}`
+          progress
         } as Row;
       })
       .filter((r): r is Row => r !== null);
   });
+
+  generalLink(): string {
+    return `${location.origin}${location.pathname}#/aporta`;
+  }
+
+  copiedGeneral = false;
+  copyGeneral(): void {
+    navigator.clipboard?.writeText(this.generalLink()).then(() => {
+      this.copiedGeneral = true;
+      setTimeout(() => (this.copiedGeneral = false), 1800);
+    });
+  }
 
   totalPaid = computed(() =>
     this.rows().reduce((s, r) => s + r.paid, 0)
@@ -141,10 +161,4 @@ export class SummaryComponent {
     return Math.min(100, Math.round((this.totalPaid() / b.totalAmount) * 100));
   });
 
-  copy(url: string, id: string): void {
-    navigator.clipboard?.writeText(url).then(() => {
-      this.copiedId = id;
-      setTimeout(() => (this.copiedId = null), 1800);
-    });
-  }
 }
