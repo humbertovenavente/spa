@@ -19,6 +19,11 @@ interface DayStat {
   label: string;
 }
 
+interface Strategy {
+  kind: 'good' | 'warn' | 'danger' | 'info';
+  text: string;
+}
+
 @Component({
   selector: 'app-personal',
   standalone: true,
@@ -78,6 +83,105 @@ interface DayStat {
             {{ ps.remaining() | currency:ps.currency():'symbol':'1.2-2' }}
           </p>
         </div>
+      </div>
+
+      <!-- Plan y ahorro -->
+      <div class="card">
+        <h2 class="text-lg font-semibold text-slate-900 mb-3">Plan y ahorro</h2>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div class="rounded-lg border border-slate-200 p-3">
+            <p class="text-xs text-slate-500">Ingreso</p>
+            <p class="text-base font-semibold text-slate-900 mt-0.5">
+              {{ ps.income() | currency:ps.currency():'symbol':'1.2-2' }}
+            </p>
+          </div>
+          <div class="rounded-lg border border-slate-200 p-3">
+            <p class="text-xs text-slate-500">Total presupuesto</p>
+            <p class="text-base font-semibold text-slate-900 mt-0.5">
+              {{ ps.totalBudget() | currency:ps.currency():'symbol':'1.2-2' }}
+            </p>
+            <p class="text-xs text-slate-500 mt-0.5">{{ plan().categoriesCount }} categorías</p>
+          </div>
+          <div class="rounded-lg border p-3"
+               [class.border-emerald-200]="plan().targetSaving >= 0"
+               [class.bg-emerald-50]="plan().targetSaving >= 0"
+               [class.border-rose-200]="plan().targetSaving < 0"
+               [class.bg-rose-50]="plan().targetSaving < 0">
+            <p class="text-xs"
+               [class.text-emerald-700]="plan().targetSaving >= 0"
+               [class.text-rose-700]="plan().targetSaving < 0">
+              Ahorro objetivo
+            </p>
+            <p class="text-base font-semibold mt-0.5"
+               [class.text-emerald-700]="plan().targetSaving >= 0"
+               [class.text-rose-700]="plan().targetSaving < 0">
+              {{ plan().targetSaving | currency:ps.currency():'symbol':'1.2-2' }}
+            </p>
+            <p class="text-xs text-slate-500 mt-0.5">
+              {{ plan().targetRate | number:'1.0-0' }}% del ingreso
+            </p>
+          </div>
+          <div class="rounded-lg border p-3"
+               [class.border-emerald-200]="plan().realSaving >= 0"
+               [class.bg-emerald-50]="plan().realSaving >= 0"
+               [class.border-rose-200]="plan().realSaving < 0"
+               [class.bg-rose-50]="plan().realSaving < 0">
+            <p class="text-xs"
+               [class.text-emerald-700]="plan().realSaving >= 0"
+               [class.text-rose-700]="plan().realSaving < 0">
+              Ahorro real
+            </p>
+            <p class="text-base font-semibold mt-0.5"
+               [class.text-emerald-700]="plan().realSaving >= 0"
+               [class.text-rose-700]="plan().realSaving < 0">
+              {{ plan().realSaving | currency:ps.currency():'symbol':'1.2-2' }}
+            </p>
+            <p class="text-xs text-slate-500 mt-0.5">
+              {{ plan().realRate | number:'1.0-0' }}% del ingreso
+            </p>
+          </div>
+        </div>
+
+        <div class="mt-4" *ngIf="ps.income() > 0">
+          <p class="text-xs text-slate-500 mb-1.5">Tu ingreso</p>
+          <div class="w-full h-3 rounded-full bg-slate-100 overflow-hidden flex">
+            <div class="h-full bg-rose-400" [style.width.%]="plan().spentPctOfIncome"
+                 [title]="'Gastado: ' + (ps.totalSpent() | currency:ps.currency():'symbol':'1.2-2')"></div>
+            <div class="h-full bg-amber-300" [style.width.%]="plan().budgetedRemainingPct"
+                 [title]="'Presupuestado pendiente'"></div>
+            <div class="h-full bg-emerald-400 flex-1"
+                 [title]="'Disponible / ahorro'"></div>
+          </div>
+          <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+            <span><span class="inline-block w-2 h-2 rounded-sm bg-rose-400 mr-1"></span>Gastado</span>
+            <span><span class="inline-block w-2 h-2 rounded-sm bg-amber-300 mr-1"></span>Presupuestado pendiente</span>
+            <span><span class="inline-block w-2 h-2 rounded-sm bg-emerald-400 mr-1"></span>Ahorro</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Estrategias -->
+      <div class="card">
+        <h2 class="text-lg font-semibold text-slate-900 mb-3">Estrategias</h2>
+        <ul class="space-y-2">
+          <li *ngFor="let s of strategies()"
+              class="rounded-lg border p-3 text-sm"
+              [class.border-emerald-200]="s.kind === 'good'"
+              [class.bg-emerald-50]="s.kind === 'good'"
+              [class.text-emerald-800]="s.kind === 'good'"
+              [class.border-amber-200]="s.kind === 'warn'"
+              [class.bg-amber-50]="s.kind === 'warn'"
+              [class.text-amber-800]="s.kind === 'warn'"
+              [class.border-rose-200]="s.kind === 'danger'"
+              [class.bg-rose-50]="s.kind === 'danger'"
+              [class.text-rose-800]="s.kind === 'danger'"
+              [class.border-slate-200]="s.kind === 'info'"
+              [class.bg-slate-50]="s.kind === 'info'"
+              [class.text-slate-700]="s.kind === 'info'">
+            {{ s.text }}
+          </li>
+        </ul>
       </div>
 
       <div class="card">
@@ -302,6 +406,147 @@ export class PersonalComponent {
       this.currency = p.currency || 'USD';
       this.synced = true;
     });
+  }
+
+  plan = computed(() => {
+    const income = this.ps.income();
+    const totalBudget = this.ps.totalBudget();
+    const totalSpent = this.ps.totalSpent();
+    const targetSaving = income - totalBudget;
+    const realSaving = income - totalSpent;
+    const targetRate = income > 0 ? (targetSaving / income) * 100 : 0;
+    const realRate = income > 0 ? (realSaving / income) * 100 : 0;
+
+    const spentPctOfIncome = income > 0
+      ? Math.min(100, Math.max(0, (totalSpent / income) * 100))
+      : 0;
+    const budgetedPending = Math.max(0, totalBudget - totalSpent);
+    const budgetedRemainingPct = income > 0
+      ? Math.min(100 - spentPctOfIncome, (budgetedPending / income) * 100)
+      : 0;
+
+    return {
+      income,
+      totalBudget,
+      totalSpent,
+      targetSaving,
+      targetRate,
+      realSaving,
+      realRate,
+      categoriesCount: this.ps.categories().length,
+      spentPctOfIncome,
+      budgetedRemainingPct
+    };
+  });
+
+  strategies = computed<Strategy[]>(() => {
+    const items: Strategy[] = [];
+    const p = this.plan();
+    const cur = this.ps.currency();
+
+    if (p.income === 0) {
+      items.push({ kind: 'info', text: 'Define tu ingreso mensual para ver tu plan de ahorro y recomendaciones.' });
+      return items;
+    }
+
+    if (p.totalBudget > p.income) {
+      items.push({
+        kind: 'danger',
+        text: `Tu presupuesto supera tu ingreso por ${this.fmt(p.totalBudget - p.income, cur)}. Reduce alguna categoría.`
+      });
+    }
+
+    if (p.categoriesCount === 0) {
+      items.push({ kind: 'info', text: 'Crea categorías de presupuesto para distribuir tu ingreso.' });
+    } else {
+      if (p.targetRate >= 20) {
+        items.push({
+          kind: 'good',
+          text: `Buen plan: apuntas a ahorrar ${Math.round(p.targetRate)}% de tu ingreso.`
+        });
+      } else if (p.targetRate >= 10) {
+        items.push({
+          kind: 'warn',
+          text: `Tu plan ahorra ${Math.round(p.targetRate)}% de tu ingreso. Lo recomendado es al menos 20% (regla 50/30/20).`
+        });
+      } else if (p.targetRate >= 0) {
+        items.push({
+          kind: 'warn',
+          text: `Solo ahorras ${Math.round(p.targetRate)}% de tu ingreso. Aspira al 20% o más.`
+        });
+      }
+    }
+
+    if (p.realRate < 0) {
+      items.push({
+        kind: 'danger',
+        text: `Llevas gastado ${this.fmt(-p.realSaving, cur)} más de lo que ganas este mes. Frena gastos.`
+      });
+    } else if (p.realRate >= 20 && p.totalSpent > 0) {
+      items.push({
+        kind: 'good',
+        text: `Vas bien: este mes estás ahorrando ${Math.round(p.realRate)}% de tu ingreso.`
+      });
+    }
+
+    const overBudget = this.ps.categories()
+      .filter((c) => c.monthlyAmount > 0 && this.ps.spentByCategory(c.id) > c.monthlyAmount)
+      .map((c) => ({
+        name: c.name,
+        over: this.ps.spentByCategory(c.id) - c.monthlyAmount
+      }));
+
+    for (const c of overBudget) {
+      items.push({
+        kind: 'danger',
+        text: `${c.name}: te pasaste por ${this.fmt(c.over, cur)} este mes.`
+      });
+    }
+
+    const atRisk = this.ps.categories()
+      .filter((c) => {
+        if (c.monthlyAmount <= 0) return false;
+        const pct = (this.ps.spentByCategory(c.id) / c.monthlyAmount) * 100;
+        return pct >= 80 && pct <= 100;
+      })
+      .map((c) => ({
+        name: c.name,
+        pct: Math.round((this.ps.spentByCategory(c.id) / c.monthlyAmount) * 100)
+      }));
+
+    for (const c of atRisk) {
+      items.push({
+        kind: 'warn',
+        text: `${c.name}: estás al ${c.pct}% del presupuesto. Modera el ritmo.`
+      });
+    }
+
+    const top = this.stats().topCategories[0];
+    if (top && top.pct >= 40 && this.stats().count >= 3) {
+      items.push({
+        kind: 'info',
+        text: `${top.name} concentra ${top.pct}% de tus gastos. Si recortas un 10% ahorras ${this.fmt(top.amount * 0.1, cur)} al mes.`
+      });
+    }
+
+    if (items.length === 0) {
+      items.push({ kind: 'info', text: 'Sigue registrando gastos para recibir más recomendaciones.' });
+    }
+
+    return items;
+  });
+
+  private fmt(amount: number, currency: string): string {
+    try {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).format(amount);
+    } catch {
+      return amount.toFixed(2);
+    }
   }
 
   stats = computed(() => {
