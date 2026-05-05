@@ -1,0 +1,7 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "ng build",
+  "outputDirectory": "dist/gastos-familiares/browser",
+  "installCommand": "npm install",
+  "framework": null
+}
