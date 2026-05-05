@@ -11,6 +11,26 @@ import { CURRENCIES } from '../../models/family.model';
   template: `
     <section class="space-y-4">
       <div class="card">
+        <p class="text-xs font-medium text-brand-700">Tu link de gastos</p>
+        <p class="text-xs text-slate-600 mt-0.5">
+          Ábrelo desde el celular para registrar gastos al instante.
+        </p>
+        <div class="mt-2 flex items-center gap-2 text-xs">
+          <input type="text" readonly [value]="expenseLink()"
+                 class="flex-1 min-w-0 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-slate-700 truncate" />
+          <a [href]="expenseLink()" target="_blank"
+             class="font-medium text-brand-600 hover:text-brand-700 underline shrink-0">
+            Abrir
+          </a>
+          <button type="button"
+                  class="font-medium text-brand-600 hover:text-brand-700 underline shrink-0"
+                  (click)="copyLink()">
+            {{ copied ? 'Copiado' : 'Copiar' }}
+          </button>
+        </div>
+      </div>
+
+      <div class="card">
         <h2 class="text-lg font-semibold text-slate-900 mb-4">Ingreso mensual</h2>
         <form (ngSubmit)="saveIncome()" class="space-y-3">
           <div>
@@ -63,9 +83,10 @@ import { CURRENCIES } from '../../models/family.model';
             </div>
           </div>
           <button type="submit" class="btn-primary w-full"
-                  [disabled]="!catName || catAmount === null">
-            Agregar categoría
+                  [disabled]="!catName || catAmount === null || addingCategory">
+            {{ addingCategory ? 'Agregando…' : 'Agregar categoría' }}
           </button>
+          <p *ngIf="addError" class="text-xs text-rose-600 text-center">{{ addError }}</p>
         </form>
 
         <div *ngIf="ps.categories().length === 0" class="text-center text-slate-500 py-6 text-sm">
@@ -99,22 +120,6 @@ import { CURRENCIES } from '../../models/family.model';
             </div>
           </li>
         </ul>
-      </div>
-
-      <div class="card" *ngIf="ps.categories().length">
-        <p class="text-xs font-medium text-brand-700">Link para registrar gastos</p>
-        <p class="text-xs text-slate-600 mt-0.5">
-          Ábrelo desde el celular para anotar gastos al instante.
-        </p>
-        <div class="mt-2 flex items-center gap-2 text-xs">
-          <input type="text" readonly [value]="expenseLink()"
-                 class="flex-1 min-w-0 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-slate-700 truncate" />
-          <button type="button"
-                  class="font-medium text-brand-600 hover:text-brand-700 underline shrink-0"
-                  (click)="copyLink()">
-            {{ copied ? 'Copiado' : 'Copiar' }}
-          </button>
-        </div>
       </div>
 
       <div class="card" *ngIf="ps.expenses().length">
@@ -159,6 +164,8 @@ export class PersonalComponent {
   catAmount: number | null = null;
   copied = false;
   savingIncome = false;
+  addingCategory = false;
+  addError = '';
 
   private synced = false;
   constructor() {
@@ -188,9 +195,18 @@ export class PersonalComponent {
 
   async addCategory(): Promise<void> {
     if (!this.catName || this.catAmount === null) return;
-    await this.ps.addCategory(this.catName.trim(), Number(this.catAmount));
-    this.catName = '';
-    this.catAmount = null;
+    this.addError = '';
+    this.addingCategory = true;
+    try {
+      await this.ps.addCategory(this.catName.trim(), Number(this.catAmount));
+      this.catName = '';
+      this.catAmount = null;
+    } catch (err: any) {
+      this.addError =
+        err?.error?.error || err?.message || 'No se pudo agregar la categoría';
+    } finally {
+      this.addingCategory = false;
+    }
   }
 
   async removeCategory(id: string): Promise<void> {

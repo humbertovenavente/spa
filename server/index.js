@@ -177,6 +177,18 @@ async function getPersonalProfile() {
   return p;
 }
 
+function profileToJSON(p) {
+  return {
+    income: p.income || 0,
+    currency: p.currency || 'USD',
+    categories: (p.categories || []).map((c) => ({
+      id: c._id.toString(),
+      name: c.name,
+      monthlyAmount: c.monthlyAmount || 0
+    }))
+  };
+}
+
 app.get(
   '/api/personal',
   wrap(async (_req, res) => {
@@ -185,7 +197,7 @@ app.get(
       PersonalExpense.find().sort({ date: -1, createdAt: -1 })
     ]);
     res.json({
-      profile: profile.toJSON(),
+      profile: profileToJSON(profile),
       expenses: expenses.map((e) => e.toJSON())
     });
   })
@@ -199,7 +211,7 @@ app.put(
     if (income != null) p.income = Number(income) || 0;
     if (currency) p.currency = currency;
     await p.save();
-    res.json(p.toJSON());
+    res.json(profileToJSON(p));
   })
 );
 
@@ -211,8 +223,12 @@ app.post(
     const p = await getPersonalProfile();
     p.categories.push({ name, monthlyAmount: Number(monthlyAmount) || 0 });
     await p.save();
-    const cat = p.categories[p.categories.length - 1];
-    res.status(201).json(cat.toJSON());
+    const sub = p.categories[p.categories.length - 1];
+    res.status(201).json({
+      id: sub._id.toString(),
+      name: sub.name,
+      monthlyAmount: sub.monthlyAmount || 0
+    });
   })
 );
 
