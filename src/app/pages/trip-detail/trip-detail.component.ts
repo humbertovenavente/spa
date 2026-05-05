@@ -1,17 +1,9 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TripService, Transfer } from '../../services/trip.service';
 import { FamilyService } from '../../services/family.service';
-import { TripDetail, TripParticipant } from '../../models/trip.model';
-
-interface SplitInput {
-  memberId: string;
-  name: string;
-  amount: number;
-  selected: boolean;
-}
 
 @Component({
   selector: 'app-trip-detail',
@@ -49,38 +41,65 @@ interface SplitInput {
         </button>
       </div>
 
-      <!-- Participantes: presupuesto vs gastado -->
+      <!-- Participantes: presupuesto editable + estadísticas -->
       <div class="card" *ngIf="participantStats().length">
         <h3 class="text-lg font-semibold text-slate-900 mb-3">Participantes</h3>
         <ul class="space-y-3">
           <li *ngFor="let p of participantStats()"
               class="rounded-lg border border-slate-200 bg-white p-3">
             <div class="flex items-start justify-between gap-3">
-              <div class="min-w-0">
+              <div class="min-w-0 flex-1">
                 <p class="font-medium text-slate-900 truncate">{{ p.name }}</p>
-                <p class="text-xs text-slate-500 mt-0.5">
-                  Gastado:
-                  <b class="text-slate-700">{{ p.spent | currency:trip()!.currency:'symbol':'1.2-2' }}</b>
-                  <span *ngIf="p.budget > 0">
-                    / {{ p.budget | currency:trip()!.currency:'symbol':'1.2-2' }}
-                  </span>
-                  <span *ngIf="p.budget === 0" class="ml-1">· sin presupuesto</span>
-                </p>
-              </div>
-              <span [class]="p.over > 0 ? 'badge-warning !bg-rose-50 !text-rose-700 !border-rose-200'
-                              : (p.budget > 0 ? 'badge-success' : 'badge')">
-                <ng-container *ngIf="p.over > 0; else okBadge">
-                  Excede {{ p.over | currency:trip()!.currency:'symbol':'1.2-2' }}
-                </ng-container>
-                <ng-template #okBadge>
-                  <ng-container *ngIf="p.budget > 0; else noBudget">
-                    Disponible {{ p.remaining | currency:trip()!.currency:'symbol':'1.2-2' }}
+                <div class="grid grid-cols-2 gap-x-3 gap-y-0.5 mt-1 text-xs text-slate-500">
+                  <span>Pagó: <b class="text-slate-700">{{ p.paid | currency:trip()!.currency:'symbol':'1.2-2' }}</b></span>
+                  <span>Gastó: <b class="text-slate-700">{{ p.spent | currency:trip()!.currency:'symbol':'1.2-2' }}</b></span>
+                  <ng-container *ngIf="!editing[p.memberId]">
+                    <span class="col-span-2">
+                      Presupuesto:
+                      <b class="text-slate-700">
+                        {{ p.budget | currency:trip()!.currency:'symbol':'1.2-2' }}
+                      </b>
+                    </span>
                   </ng-container>
-                  <ng-template #noBudget>—</ng-template>
-                </ng-template>
-              </span>
+                </div>
+
+                <div *ngIf="editing[p.memberId]" class="mt-2 flex items-center gap-2">
+                  <span class="text-xs text-slate-500 w-20">Presupuesto</span>
+                  <input type="number" min="0" step="0.01" class="input"
+                         [(ngModel)]="editBudget[p.memberId]"
+                         [name]="'edit_' + p.memberId" />
+                  <button type="button"
+                          class="btn-success !px-3 !py-1.5 !min-h-0 text-xs"
+                          (click)="saveBudget(p.memberId)"
+                          [disabled]="savingBudget === p.memberId">
+                    {{ savingBudget === p.memberId ? '…' : 'Guardar' }}
+                  </button>
+                  <button type="button"
+                          class="btn-ghost !px-3 !py-1.5 !min-h-0 text-xs"
+                          (click)="cancelEditBudget(p.memberId)">Cancelar</button>
+                </div>
+              </div>
+
+              <div class="flex flex-col items-end gap-2 shrink-0">
+                <span [class]="p.over > 0 ? 'badge-warning !bg-rose-50 !text-rose-700 !border-rose-200'
+                                : (p.budget > 0 ? 'badge-success' : 'badge')">
+                  <ng-container *ngIf="p.over > 0; else okBadge">
+                    Excede {{ p.over | currency:trip()!.currency:'symbol':'1.2-2' }}
+                  </ng-container>
+                  <ng-template #okBadge>
+                    <ng-container *ngIf="p.budget > 0; else noBudget">
+                      Disponible {{ p.remaining | currency:trip()!.currency:'symbol':'1.2-2' }}
+                    </ng-container>
+                    <ng-template #noBudget>—</ng-template>
+                  </ng-template>
+                </span>
+                <button *ngIf="!editing[p.memberId]" type="button"
+                        class="btn-ghost !px-3 !py-1.5 !min-h-0 text-xs"
+                        (click)="startEditBudget(p.memberId, p.budget)">Editar</button>
+              </div>
             </div>
-            <div class="mt-2" *ngIf="p.budget > 0 || p.spent > 0">
+
+            <div class="mt-2" *ngIf="!editing[p.memberId] && (p.budget > 0 || p.spent > 0)">
               <div class="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
                 <div class="h-full transition-all"
                      [class.bg-emerald-500]="p.pct <= 80"
@@ -88,12 +107,18 @@ interface SplitInput {
                      [class.bg-rose-500]="p.pct > 100"
                      [style.width.%]="Math.min(100, p.pct)"></div>
               </div>
-              <p class="text-xs mt-1"
-                 [class.text-slate-500]="p.pct <= 100"
-                 [class.text-rose-600]="p.pct > 100">
-                {{ p.pct | number:'1.0-0' }}%
-                <span *ngIf="p.pct > 100"> del presupuesto</span>
-              </p>
+              <div class="flex justify-between text-xs mt-1">
+                <span [class.text-slate-500]="p.pct <= 100"
+                      [class.text-rose-600]="p.pct > 100">
+                  {{ p.pct | number:'1.0-0' }}% del presupuesto
+                </span>
+                <span [class.text-emerald-700]="p.balance >= 0"
+                      [class.text-rose-700]="p.balance < 0"
+                      class="font-medium">
+                  {{ p.balance >= 0 ? 'Saldo a favor ' : 'Saldo en contra ' }}
+                  {{ Math.abs(p.balance) | currency:trip()!.currency:'symbol':'1.2-2' }}
+                </span>
+              </div>
             </div>
           </li>
         </ul>
@@ -133,90 +158,6 @@ interface SplitInput {
             </span>
           </li>
         </ul>
-      </div>
-
-      <!-- Add expense -->
-      <div class="card">
-        <h3 class="text-lg font-semibold text-slate-900 mb-3">Registrar gasto</h3>
-        <form (ngSubmit)="submitExpense()" class="space-y-3">
-          <div>
-            <label class="label">Descripción</label>
-            <input class="input mt-1.5" [(ngModel)]="expDesc" name="expDesc"
-                   placeholder="Ej. Cena, Hotel" />
-          </div>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="label">Monto total</label>
-              <input class="input mt-1.5" type="number" min="0" step="0.01"
-                     [(ngModel)]="expAmount" name="expAmount"
-                     (ngModelChange)="onAmountChange()" placeholder="0.00" required />
-            </div>
-            <div>
-              <label class="label">Fecha</label>
-              <input class="input mt-1.5" type="date" [(ngModel)]="expDate" name="expDate" required />
-            </div>
-          </div>
-          <div>
-            <label class="label">¿Quién pagó?</label>
-            <select class="input mt-1.5" [(ngModel)]="payerId" name="payerId" required>
-              <option *ngFor="let p of trip()!.participants" [value]="p.memberId">
-                {{ memberName(p.memberId) }}
-              </option>
-            </select>
-          </div>
-
-          <label class="flex items-center gap-2 select-none">
-            <input type="checkbox" [(ngModel)]="shared" name="shared"
-                   class="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-                   (change)="onSharedToggle()" />
-            <span class="text-sm font-medium text-slate-700">Gasto compartido</span>
-          </label>
-
-          <div *ngIf="shared">
-            <div class="flex items-center justify-between mb-2">
-              <p class="label">¿Cuánto le toca a cada uno?</p>
-              <button type="button" class="text-xs text-brand-600 hover:text-brand-700 underline"
-                      (click)="splitEqual()">Dividir parejo</button>
-            </div>
-            <ul class="space-y-2">
-              <li *ngFor="let s of splits(); let i = index"
-                  class="rounded-lg border border-slate-200 bg-white p-2 flex items-center gap-2">
-                <input type="checkbox"
-                       class="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-                       [checked]="s.selected" (change)="toggleSplit(i)" />
-                <span class="flex-1 text-sm font-medium text-slate-900 truncate">{{ s.name }}</span>
-                <input type="number" min="0" step="0.01"
-                       class="input !w-28 !py-1.5"
-                       [disabled]="!s.selected"
-                       [ngModel]="s.amount"
-                       (ngModelChange)="setSplitAmount(i, $event)"
-                       [name]="'sp_' + s.memberId" />
-              </li>
-            </ul>
-            <div class="mt-2 text-xs">
-              <span class="text-slate-500">Suma:</span>
-              <b [class.text-emerald-600]="sumOk()"
-                 [class.text-rose-600]="!sumOk()">
-                {{ splitSum() | currency:trip()!.currency:'symbol':'1.2-2' }}
-              </b>
-              <span class="text-slate-500">
-                / {{ (expAmount || 0) | currency:trip()!.currency:'symbol':'1.2-2' }}
-              </span>
-              <span *ngIf="(expAmount || 0) - splitSum() > 0.01" class="text-amber-600 ml-1">
-                · Falta {{ ((expAmount || 0) - splitSum()) | currency:trip()!.currency:'symbol':'1.2-2' }}
-              </span>
-              <span *ngIf="splitSum() - (expAmount || 0) > 0.01" class="text-rose-600 ml-1">
-                · Excede por {{ (splitSum() - (expAmount || 0)) | currency:trip()!.currency:'symbol':'1.2-2' }}
-              </span>
-            </div>
-          </div>
-
-          <button type="submit" class="btn-success w-full"
-                  [disabled]="!canSubmit() || sending">
-            {{ sending ? 'Enviando…' : 'Registrar gasto' }}
-          </button>
-          <p *ngIf="error" class="text-xs text-rose-600 text-center">{{ error }}</p>
-        </form>
       </div>
 
       <!-- Expenses list -->
@@ -272,37 +213,14 @@ export class TripDetailComponent {
   tripId = this.route.snapshot.paramMap.get('id') || '';
   trip = computed(() => this.ts.currentTrip());
 
-  expDesc = '';
-  expAmount: number | null = null;
-  expDate = new Date().toISOString().slice(0, 10);
-  payerId = '';
-  shared = false;
-  splits = signal<SplitInput[]>([]);
-  sending = false;
-  error = '';
   copied = false;
 
+  editing: Record<string, boolean> = {};
+  editBudget: Record<string, number> = {};
+  savingBudget: string | null = null;
+
   constructor() {
-    this.load();
-  }
-
-  private async load(): Promise<void> {
-    const t = await this.ts.loadTrip(this.tripId);
-    if (t) {
-      this.payerId = t.participants[0]?.memberId || '';
-      this.rebuildSplits(t);
-    }
-  }
-
-  private rebuildSplits(t: TripDetail): void {
-    this.splits.set(
-      t.participants.map((p) => ({
-        memberId: p.memberId,
-        name: this.memberName(p.memberId),
-        amount: 0,
-        selected: true
-      }))
-    );
+    void this.ts.loadTrip(this.tripId);
   }
 
   memberName(id: string): string {
@@ -328,14 +246,20 @@ export class TripDetailComponent {
     return t.participants.map((p) => {
       const budget = p.budget || 0;
       const spent = TripService.spentByMember(t, p.memberId);
+      const paid = t.expenses
+        .filter((e) => e.payerId === p.memberId)
+        .reduce((s, e) => s + e.amount, 0);
+      const balance = paid - spent;
       const remaining = Math.max(0, budget - spent);
       const over = Math.max(0, spent - budget);
-      const pct = budget > 0 ? (spent / budget) * 100 : (spent > 0 ? 100 : 0);
+      const pct = budget > 0 ? (spent / budget) * 100 : spent > 0 ? 100 : 0;
       return {
         memberId: p.memberId,
         name: this.memberName(p.memberId),
         budget,
         spent,
+        paid,
+        balance,
         remaining,
         over,
         pct
@@ -343,106 +267,28 @@ export class TripDetailComponent {
     });
   });
 
-  splitSum = computed(() =>
-    this.splits()
-      .filter((s) => s.selected)
-      .reduce((sum, s) => sum + (Number(s.amount) || 0), 0)
-  );
-
-  sumOk(): boolean {
-    const total = Number(this.expAmount) || 0;
-    return Math.abs(this.splitSum() - total) < 0.01;
+  startEditBudget(memberId: string, current: number): void {
+    this.editing[memberId] = true;
+    this.editBudget[memberId] = current;
   }
 
-  canSubmit(): boolean {
-    if (!this.expAmount || this.expAmount <= 0) return false;
-    if (!this.expDate || !this.payerId) return false;
-    if (this.shared && !this.sumOk()) return false;
-    if (this.shared && this.splits().filter((s) => s.selected).length === 0) return false;
-    return true;
+  cancelEditBudget(memberId: string): void {
+    delete this.editing[memberId];
   }
 
-  onAmountChange(): void {
-    if (this.shared) this.splitEqual();
-  }
-
-  onSharedToggle(): void {
-    if (this.shared) this.splitEqual();
-  }
-
-  splitEqual(): void {
-    const total = Number(this.expAmount) || 0;
-    const sel = this.splits().filter((s) => s.selected);
-    if (sel.length === 0) return;
-    const each = Math.round((total / sel.length) * 100) / 100;
-    this.splits.update((arr) =>
-      arr.map((s) => (s.selected ? { ...s, amount: each } : { ...s, amount: 0 }))
-    );
-    // Adjust last selected for rounding
-    const drift = total - each * sel.length;
-    if (Math.abs(drift) > 0.001) {
-      this.splits.update((arr) => {
-        const idxs = arr
-          .map((s, i) => ({ s, i }))
-          .filter((x) => x.s.selected)
-          .map((x) => x.i);
-        const lastIdx = idxs[idxs.length - 1];
-        return arr.map((s, i) =>
-          i === lastIdx ? { ...s, amount: Math.round((s.amount + drift) * 100) / 100 } : s
-        );
-      });
-    }
-  }
-
-  toggleSplit(i: number): void {
-    this.splits.update((arr) =>
-      arr.map((s, idx) =>
-        idx === i ? { ...s, selected: !s.selected, amount: !s.selected ? s.amount : 0 } : s
-      )
-    );
-    if (this.shared) this.splitEqual();
-  }
-
-  setSplitAmount(i: number, value: number): void {
-    const total = Number(this.expAmount) || 0;
-    this.splits.update((arr) => {
-      const others = arr.reduce(
-        (s, x, idx) => (idx !== i && x.selected ? s + (Number(x.amount) || 0) : s),
-        0
-      );
-      const maxAllowed = Math.max(0, total - others);
-      const next = Math.max(0, Math.min(Number(value) || 0, maxAllowed));
-      return arr.map((s, idx) => (idx === i ? { ...s, amount: next } : s));
-    });
-  }
-
-  async submitExpense(): Promise<void> {
-    if (!this.canSubmit()) return;
-    this.sending = true;
-    this.error = '';
+  async saveBudget(memberId: string): Promise<void> {
+    const trip = this.trip();
+    if (!trip) return;
+    const newAmount = Number(this.editBudget[memberId]) || 0;
+    this.savingBudget = memberId;
     try {
-      const splits = this.shared
-        ? this.splits()
-            .filter((s) => s.selected)
-            .map((s) => ({ memberId: s.memberId, amount: Number(s.amount) || 0 }))
-        : [{ memberId: this.payerId, amount: Number(this.expAmount) || 0 }];
-      await this.ts.addExpense(this.tripId, {
-        payerId: this.payerId,
-        amount: Number(this.expAmount) || 0,
-        date: this.expDate,
-        description: this.expDesc.trim() || undefined,
-        shared: this.shared,
-        splits
-      });
-      this.expDesc = '';
-      this.expAmount = null;
-      this.shared = false;
-      const t = this.trip();
-      if (t) this.rebuildSplits(t);
-    } catch (err: any) {
-      this.error = err?.error?.error || err?.message || 'Error al registrar';
+      const updated = trip.participants.map((p) =>
+        p.memberId === memberId ? { ...p, budget: newAmount } : p
+      );
+      await this.ts.updateTrip(trip.id, { participants: updated });
+      delete this.editing[memberId];
     } finally {
-      this.sending = false;
+      this.savingBudget = null;
     }
   }
 
