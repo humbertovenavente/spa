@@ -44,11 +44,43 @@ interface SplitInput {
               {{ Math.abs(balance()) | currency:trip()!.currency:'symbol':'1.2-2' }}
             </p>
           </div>
-          <div class="rounded-lg border border-slate-200 p-3">
-            <p class="text-xs text-slate-500">Tu parte gastada</p>
-            <p class="text-lg font-semibold text-slate-900 mt-0.5">
-              {{ mySpent() | currency:trip()!.currency:'symbol':'1.2-2' }}
+          <div class="rounded-lg border p-3"
+               [class.border-rose-200]="myOver() > 0"
+               [class.bg-rose-50]="myOver() > 0"
+               [class.border-slate-200]="myOver() === 0">
+            <p class="text-xs"
+               [class.text-rose-700]="myOver() > 0"
+               [class.text-slate-500]="myOver() === 0">
+              Tu parte gastada
             </p>
+            <p class="text-lg font-semibold mt-0.5"
+               [class.text-rose-700]="myOver() > 0"
+               [class.text-slate-900]="myOver() === 0">
+              {{ mySpent() | currency:trip()!.currency:'symbol':'1.2-2' }}
+              <span *ngIf="myBudget() > 0" class="text-sm font-normal text-slate-500">
+                / {{ myBudget() | currency:trip()!.currency:'symbol':'1.2-2' }}
+              </span>
+            </p>
+          </div>
+        </div>
+
+        <!-- Estado del presupuesto personal -->
+        <div class="mt-4" *ngIf="myBudget() > 0 || mySpent() > 0">
+          <div class="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+            <div class="h-full transition-all"
+                 [class.bg-emerald-500]="myPct() <= 80"
+                 [class.bg-amber-500]="myPct() > 80 && myPct() <= 100"
+                 [class.bg-rose-500]="myPct() > 100"
+                 [style.width.%]="Math.min(100, myPct())"></div>
+          </div>
+          <div class="flex justify-between text-xs mt-1.5">
+            <span class="text-slate-500">{{ myPct() | number:'1.0-0' }}% del presupuesto</span>
+            <span *ngIf="myOver() > 0" class="font-semibold text-rose-700">
+              Excede por {{ myOver() | currency:trip()!.currency:'symbol':'1.2-2' }}
+            </span>
+            <span *ngIf="myOver() === 0 && myBudget() > 0" class="font-medium text-emerald-700">
+              Disponible {{ myRemaining() | currency:trip()!.currency:'symbol':'1.2-2' }}
+            </span>
           </div>
         </div>
       </div>
@@ -258,6 +290,20 @@ export class TripPersonComponent {
     const t = this.trip();
     if (!t) return 0;
     return TripService.spentByMember(t, this.memberId);
+  });
+
+  myBudget = computed(() => {
+    const t = this.trip();
+    if (!t) return 0;
+    return t.participants.find((p) => p.memberId === this.memberId)?.budget || 0;
+  });
+
+  myRemaining = computed(() => Math.max(0, this.myBudget() - this.mySpent()));
+  myOver = computed(() => Math.max(0, this.mySpent() - this.myBudget()));
+  myPct = computed(() => {
+    const b = this.myBudget();
+    if (b === 0) return this.mySpent() > 0 ? 100 : 0;
+    return (this.mySpent() / b) * 100;
   });
 
   myTransfers = computed<Transfer[]>(() => {

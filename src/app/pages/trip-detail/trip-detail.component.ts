@@ -49,6 +49,56 @@ interface SplitInput {
         </button>
       </div>
 
+      <!-- Participantes: presupuesto vs gastado -->
+      <div class="card" *ngIf="participantStats().length">
+        <h3 class="text-lg font-semibold text-slate-900 mb-3">Participantes</h3>
+        <ul class="space-y-3">
+          <li *ngFor="let p of participantStats()"
+              class="rounded-lg border border-slate-200 bg-white p-3">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="font-medium text-slate-900 truncate">{{ p.name }}</p>
+                <p class="text-xs text-slate-500 mt-0.5">
+                  Gastado:
+                  <b class="text-slate-700">{{ p.spent | currency:trip()!.currency:'symbol':'1.2-2' }}</b>
+                  <span *ngIf="p.budget > 0">
+                    / {{ p.budget | currency:trip()!.currency:'symbol':'1.2-2' }}
+                  </span>
+                  <span *ngIf="p.budget === 0" class="ml-1">· sin presupuesto</span>
+                </p>
+              </div>
+              <span [class]="p.over > 0 ? 'badge-warning !bg-rose-50 !text-rose-700 !border-rose-200'
+                              : (p.budget > 0 ? 'badge-success' : 'badge')">
+                <ng-container *ngIf="p.over > 0; else okBadge">
+                  Excede {{ p.over | currency:trip()!.currency:'symbol':'1.2-2' }}
+                </ng-container>
+                <ng-template #okBadge>
+                  <ng-container *ngIf="p.budget > 0; else noBudget">
+                    Disponible {{ p.remaining | currency:trip()!.currency:'symbol':'1.2-2' }}
+                  </ng-container>
+                  <ng-template #noBudget>—</ng-template>
+                </ng-template>
+              </span>
+            </div>
+            <div class="mt-2" *ngIf="p.budget > 0 || p.spent > 0">
+              <div class="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                <div class="h-full transition-all"
+                     [class.bg-emerald-500]="p.pct <= 80"
+                     [class.bg-amber-500]="p.pct > 80 && p.pct <= 100"
+                     [class.bg-rose-500]="p.pct > 100"
+                     [style.width.%]="Math.min(100, p.pct)"></div>
+              </div>
+              <p class="text-xs mt-1"
+                 [class.text-slate-500]="p.pct <= 100"
+                 [class.text-rose-600]="p.pct > 100">
+                {{ p.pct | number:'1.0-0' }}%
+                <span *ngIf="p.pct > 100"> del presupuesto</span>
+              </p>
+            </div>
+          </li>
+        </ul>
+      </div>
+
       <div class="card">
         <p class="text-xs font-medium text-brand-700">Link para compartir</p>
         <p class="text-xs text-slate-600 mt-0.5">
@@ -217,6 +267,7 @@ export class TripDetailComponent {
   private router = inject(Router);
   ts = inject(TripService);
   fs = inject(FamilyService);
+  Math = Math;
 
   tripId = this.route.snapshot.paramMap.get('id') || '';
   trip = computed(() => this.ts.currentTrip());
@@ -269,6 +320,27 @@ export class TripDetailComponent {
   transfers = computed<Transfer[]>(() => {
     const t = this.trip();
     return t ? TripService.settle(t) : [];
+  });
+
+  participantStats = computed(() => {
+    const t = this.trip();
+    if (!t) return [];
+    return t.participants.map((p) => {
+      const budget = p.budget || 0;
+      const spent = TripService.spentByMember(t, p.memberId);
+      const remaining = Math.max(0, budget - spent);
+      const over = Math.max(0, spent - budget);
+      const pct = budget > 0 ? (spent / budget) * 100 : (spent > 0 ? 100 : 0);
+      return {
+        memberId: p.memberId,
+        name: this.memberName(p.memberId),
+        budget,
+        spent,
+        remaining,
+        over,
+        pct
+      };
+    });
   });
 
   splitSum = computed(() =>
