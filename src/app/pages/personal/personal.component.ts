@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { PersonalService } from '../../services/personal.service';
@@ -211,7 +211,7 @@ interface Strategy {
         </div>
 
         <ul class="space-y-3">
-          <li *ngFor="let c of ps.categories()"
+          <li *ngFor="let c of visibleCategories()"
               class="rounded-lg border border-slate-200 bg-white p-3">
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0 flex-1">
@@ -260,6 +260,14 @@ interface Strategy {
             </div>
           </li>
         </ul>
+
+        <button *ngIf="ps.categories().length > 3" type="button"
+                class="mt-3 w-full text-sm font-medium text-brand-600 hover:text-brand-700 underline"
+                (click)="showAllCategories.set(!showAllCategories())">
+          {{ showAllCategories()
+              ? 'Ver menos'
+              : 'Ver más (' + (ps.categories().length - 3) + ' más)' }}
+        </button>
       </div>
 
       <!-- Estadísticas del mes -->
@@ -396,6 +404,12 @@ export class PersonalComponent {
   editing: Record<string, boolean> = {};
   editAmount: Record<string, number> = {};
   savingId: string | null = null;
+
+  showAllCategories = signal(false);
+  visibleCategories = computed(() => {
+    const all = this.ps.categories();
+    return this.showAllCategories() ? all : all.slice(0, 3);
+  });
 
   private synced = false;
   constructor() {
