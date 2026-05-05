@@ -232,6 +232,25 @@ app.post(
   })
 );
 
+app.patch(
+  '/api/personal/categories/:id',
+  wrap(async (req, res) => {
+    const id = req.params.id;
+    const { name, monthlyAmount } = req.body;
+    const p = await getPersonalProfile();
+    const cat = p.categories.id(id);
+    if (!cat) return res.status(404).json({ error: 'Categoría no encontrada' });
+    if (name != null) cat.name = String(name);
+    if (monthlyAmount != null) cat.monthlyAmount = Number(monthlyAmount) || 0;
+    await p.save();
+    res.json({
+      id: cat._id.toString(),
+      name: cat.name,
+      monthlyAmount: cat.monthlyAmount || 0
+    });
+  })
+);
+
 app.delete(
   '/api/personal/categories/:id',
   wrap(async (req, res) => {

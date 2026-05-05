@@ -1,8 +1,23 @@
-import { Component, effect, inject } from '@angular/core';
+import { Component, computed, effect, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { PersonalService } from '../../services/personal.service';
 import { CURRENCIES } from '../../models/family.model';
+import { PersonalCategory } from '../../models/personal.model';
+
+interface CategoryStat {
+  id: string;
+  name: string;
+  amount: number;
+  pct: number;
+}
+
+interface DayStat {
+  date: string;
+  amount: number;
+  pct: number;
+  label: string;
+}
 
 @Component({
   selector: 'app-personal',
@@ -19,9 +34,7 @@ import { CURRENCIES } from '../../models/family.model';
           <input type="text" readonly [value]="expenseLink()"
                  class="flex-1 min-w-0 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-slate-700 truncate" />
           <a [href]="expenseLink()" target="_blank"
-             class="font-medium text-brand-600 hover:text-brand-700 underline shrink-0">
-            Abrir
-          </a>
+             class="font-medium text-brand-600 hover:text-brand-700 underline shrink-0">Abrir</a>
           <button type="button"
                   class="font-medium text-brand-600 hover:text-brand-700 underline shrink-0"
                   (click)="copyLink()">
@@ -97,18 +110,41 @@ import { CURRENCIES } from '../../models/family.model';
           <li *ngFor="let c of ps.categories()"
               class="rounded-lg border border-slate-200 bg-white p-3">
             <div class="flex items-start justify-between gap-3">
-              <div class="min-w-0">
+              <div class="min-w-0 flex-1">
                 <p class="font-medium text-slate-900 truncate">{{ c.name }}</p>
-                <p class="text-xs text-slate-500 mt-0.5">
-                  Presupuesto: {{ c.monthlyAmount | currency:ps.currency():'symbol':'1.2-2' }} ·
-                  Gastado: {{ ps.spentByCategory(c.id) | currency:ps.currency():'symbol':'1.2-2' }}
-                </p>
+
+                <ng-container *ngIf="!editing[c.id]; else editMode">
+                  <p class="text-xs text-slate-500 mt-0.5">
+                    Presupuesto: {{ c.monthlyAmount | currency:ps.currency():'symbol':'1.2-2' }} ·
+                    Gastado: {{ ps.spentByCategory(c.id) | currency:ps.currency():'symbol':'1.2-2' }}
+                  </p>
+                </ng-container>
+
+                <ng-template #editMode>
+                  <div class="mt-2 flex items-center gap-2">
+                    <input type="number" min="0" step="0.01" class="input"
+                           [(ngModel)]="editAmount[c.id]" [name]="'edit_' + c.id" />
+                    <button type="button" class="btn-success !px-3 !py-1.5 !min-h-0 text-xs"
+                            (click)="saveEdit(c.id)" [disabled]="savingId === c.id">
+                      {{ savingId === c.id ? '…' : 'Guardar' }}
+                    </button>
+                    <button type="button" class="btn-ghost !px-3 !py-1.5 !min-h-0 text-xs"
+                            (click)="cancelEdit(c.id)">Cancelar</button>
+                  </div>
+                </ng-template>
               </div>
-              <button type="button"
-                      class="btn-ghost !px-3 !py-1.5 !min-h-0 text-xs"
-                      (click)="removeCategory(c.id)">Eliminar</button>
+
+              <div class="flex flex-col gap-2 shrink-0" *ngIf="!editing[c.id]">
+                <button type="button"
+                        class="btn-ghost !px-3 !py-1.5 !min-h-0 text-xs"
+                        (click)="startEdit(c)">Editar</button>
+                <button type="button"
+                        class="btn-ghost !px-3 !py-1.5 !min-h-0 text-xs"
+                        (click)="removeCategory(c.id)">Eliminar</button>
+              </div>
             </div>
-            <div class="mt-2">
+
+            <div class="mt-2" *ngIf="!editing[c.id]">
               <div class="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
                 <div class="h-full transition-all"
                      [class.bg-emerald-500]="progress(c.id) <= 80"
@@ -120,6 +156,92 @@ import { CURRENCIES } from '../../models/family.model';
             </div>
           </li>
         </ul>
+      </div>
+
+      <!-- Estadísticas del mes -->
+      <div class="card" *ngIf="ps.expenses().length">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-lg font-semibold text-slate-900">Resumen estadístico</h2>
+          <span class="badge-info">{{ ps.currentMonth() }}</span>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div class="rounded-lg border border-slate-200 p-3">
+            <p class="text-xs text-slate-500">Transacciones</p>
+            <p class="text-lg font-semibold text-slate-900 mt-0.5">{{ stats().count }}</p>
+          </div>
+          <div class="rounded-lg border border-slate-200 p-3">
+            <p class="text-xs text-slate-500">Promedio</p>
+            <p class="text-lg font-semibold text-slate-900 mt-0.5">
+              {{ stats().avg | currency:ps.currency():'symbol':'1.2-2' }}
+            </p>
+          </div>
+          <div class="rounded-lg border border-slate-200 p-3">
+            <p class="text-xs text-slate-500">Por día</p>
+            <p class="text-lg font-semibold text-slate-900 mt-0.5">
+              {{ stats().avgPerDay | currency:ps.currency():'symbol':'1.2-2' }}
+            </p>
+          </div>
+          <div class="rounded-lg border border-slate-200 p-3">
+            <p class="text-xs text-slate-500">Mayor gasto</p>
+            <p class="text-lg font-semibold text-slate-900 mt-0.5">
+              {{ stats().maxAmount | currency:ps.currency():'symbol':'1.2-2' }}
+            </p>
+          </div>
+        </div>
+
+        <div class="mt-4 rounded-lg bg-slate-50 border border-slate-200 p-3 text-sm flex items-center justify-between"
+             *ngIf="prevMonth().count > 0">
+          <span class="text-slate-700">
+            vs mes anterior ({{ prevMonth().month }}):
+            <b>{{ prevMonth().total | currency:ps.currency():'symbol':'1.2-2' }}</b>
+          </span>
+          <span [class.text-emerald-600]="diff() < 0"
+                [class.text-rose-600]="diff() > 0"
+                [class.text-slate-600]="diff() === 0"
+                class="font-semibold">
+            {{ diff() > 0 ? '▲' : (diff() < 0 ? '▼' : '–') }}
+            {{ Math.abs(diff()) | currency:ps.currency():'symbol':'1.2-2' }}
+            <span class="text-xs">({{ diffPct() }}%)</span>
+          </span>
+        </div>
+
+        <div class="mt-5" *ngIf="stats().topCategories.length">
+          <h3 class="text-sm font-semibold text-slate-700 mb-2">Top categorías</h3>
+          <ul class="space-y-2">
+            <li *ngFor="let s of stats().topCategories" class="text-sm">
+              <div class="flex justify-between gap-3">
+                <span class="text-slate-700 truncate">{{ s.name }}</span>
+                <span class="font-medium text-slate-900 shrink-0">
+                  {{ s.amount | currency:ps.currency():'symbol':'1.2-2' }}
+                  <span class="text-xs text-slate-500 ml-1">({{ s.pct }}%)</span>
+                </span>
+              </div>
+              <div class="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden mt-1">
+                <div class="h-full bg-brand-500" [style.width.%]="s.pct"></div>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="mt-5" *ngIf="byDay().length">
+          <h3 class="text-sm font-semibold text-slate-700 mb-2">Distribución por día</h3>
+          <div class="flex items-end gap-1 h-24">
+            <div *ngFor="let d of byDay()"
+                 class="flex-1 flex flex-col items-center justify-end gap-1 min-w-0">
+              <div class="w-full bg-brand-500 rounded-sm transition-all"
+                   [style.height.%]="d.pct"
+                   [title]="d.label + ': ' + (d.amount | currency:ps.currency():'symbol':'1.2-2')">
+              </div>
+            </div>
+          </div>
+          <div class="flex gap-1 mt-1">
+            <div *ngFor="let d of byDay()"
+                 class="flex-1 text-[10px] text-slate-500 text-center min-w-0 truncate">
+              {{ d.label }}
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="card" *ngIf="ps.expenses().length">
@@ -167,6 +289,10 @@ export class PersonalComponent {
   addingCategory = false;
   addError = '';
 
+  editing: Record<string, boolean> = {};
+  editAmount: Record<string, number> = {};
+  savingId: string | null = null;
+
   private synced = false;
   constructor() {
     effect(() => {
@@ -177,6 +303,77 @@ export class PersonalComponent {
       this.synced = true;
     });
   }
+
+  stats = computed(() => {
+    const expenses = this.ps.monthExpenses();
+    const total = this.ps.totalSpent();
+    const count = expenses.length;
+    const avg = count > 0 ? total / count : 0;
+    const maxAmount = expenses.reduce((m, e) => Math.max(m, e.amount), 0);
+
+    const byDayMap = new Map<string, number>();
+    for (const e of expenses) {
+      byDayMap.set(e.date, (byDayMap.get(e.date) || 0) + e.amount);
+    }
+    const avgPerDay = byDayMap.size > 0 ? total / byDayMap.size : 0;
+
+    const byCatMap = new Map<string, number>();
+    for (const e of expenses) {
+      byCatMap.set(e.categoryId, (byCatMap.get(e.categoryId) || 0) + e.amount);
+    }
+    const topCategories: CategoryStat[] = [...byCatMap.entries()]
+      .map(([id, amount]) => ({
+        id,
+        name: this.ps.categoryName(id),
+        amount,
+        pct: total > 0 ? Math.round((amount / total) * 100) : 0
+      }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 5);
+
+    return { total, count, avg, avgPerDay, maxAmount, topCategories };
+  });
+
+  byDay = computed<DayStat[]>(() => {
+    const expenses = this.ps.monthExpenses();
+    const month = this.ps.currentMonth(); // YYYY-MM
+    const [y, m] = month.split('-').map(Number);
+    if (!y || !m) return [];
+    const lastDay = new Date(y, m, 0).getDate();
+
+    const map = new Map<string, number>();
+    for (const e of expenses) map.set(e.date, (map.get(e.date) || 0) + e.amount);
+
+    const days: { date: string; amount: number }[] = [];
+    for (let d = 1; d <= lastDay; d++) {
+      const date = `${month}-${String(d).padStart(2, '0')}`;
+      days.push({ date, amount: map.get(date) || 0 });
+    }
+    const max = Math.max(0, ...days.map((d) => d.amount));
+    return days.map((d) => ({
+      date: d.date,
+      amount: d.amount,
+      pct: max > 0 ? Math.round((d.amount / max) * 100) : 0,
+      label: String(parseInt(d.date.slice(-2), 10))
+    }));
+  });
+
+  prevMonth = computed(() => {
+    const cur = this.ps.currentMonth();
+    const [y, m] = cur.split('-').map(Number);
+    const prev = new Date(y, m - 2, 1);
+    const prevMonth = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+    const expenses = this.ps.expenses().filter((e) => e.date?.startsWith(prevMonth));
+    const total = expenses.reduce((s, e) => s + e.amount, 0);
+    return { month: prevMonth, total, count: expenses.length };
+  });
+
+  diff = computed(() => this.ps.totalSpent() - this.prevMonth().total);
+  diffPct = computed(() => {
+    const prev = this.prevMonth().total;
+    if (prev === 0) return 0;
+    return Math.round((this.diff() / prev) * 100);
+  });
 
   progress(catId: string): number {
     const c = this.ps.categories().find((x) => x.id === catId);
@@ -206,6 +403,27 @@ export class PersonalComponent {
         err?.error?.error || err?.message || 'No se pudo agregar la categoría';
     } finally {
       this.addingCategory = false;
+    }
+  }
+
+  startEdit(c: PersonalCategory): void {
+    this.editing[c.id] = true;
+    this.editAmount[c.id] = c.monthlyAmount;
+  }
+
+  cancelEdit(id: string): void {
+    delete this.editing[id];
+  }
+
+  async saveEdit(id: string): Promise<void> {
+    const amount = this.editAmount[id];
+    if (amount == null || isNaN(Number(amount))) return;
+    this.savingId = id;
+    try {
+      await this.ps.updateCategory(id, { monthlyAmount: Number(amount) });
+      delete this.editing[id];
+    } finally {
+      this.savingId = null;
     }
   }
 

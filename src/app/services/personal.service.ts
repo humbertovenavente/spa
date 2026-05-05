@@ -89,6 +89,20 @@ export class PersonalService {
     return cat;
   }
 
+  async updateCategory(id: string, patch: Partial<PersonalCategory>): Promise<PersonalCategory> {
+    const cat = await firstValueFrom(
+      this.http.patch<PersonalCategory>(`${API_BASE_URL}/personal/categories/${id}`, patch)
+    );
+    this.state.update((s) => ({
+      ...s,
+      profile: {
+        ...s.profile,
+        categories: s.profile.categories.map((c) => (c.id === id ? cat : c))
+      }
+    }));
+    return cat;
+  }
+
   async removeCategory(id: string): Promise<void> {
     await firstValueFrom(
       this.http.delete(`${API_BASE_URL}/personal/categories/${id}`)
