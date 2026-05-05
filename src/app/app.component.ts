@@ -15,11 +15,11 @@ import { FamilyService } from './services/family.service';
         <div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
           <ng-container *ngIf="!isPublic(); else publicHeader">
             <a routerLink="/" class="font-semibold text-slate-900 tracking-tight">
-              Gastos Familiares
+              Gastos
             </a>
           </ng-container>
           <ng-template #publicHeader>
-            <span class="font-semibold text-slate-900 tracking-tight">Gastos Familiares</span>
+            <span class="font-semibold text-slate-900 tracking-tight">Gastos</span>
           </ng-template>
         </div>
         <div *ngIf="fs.loadError() as err"
