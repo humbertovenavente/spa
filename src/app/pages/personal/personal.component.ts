@@ -12,13 +12,6 @@ interface CategoryStat {
   pct: number;
 }
 
-interface DayStat {
-  date: string;
-  amount: number;
-  pct: number;
-  label: string;
-}
-
 interface Strategy {
   kind: 'good' | 'warn' | 'danger' | 'info';
   text: string;
@@ -336,23 +329,16 @@ interface Strategy {
           </ul>
         </div>
 
-        <div class="mt-5" *ngIf="byDay().length">
-          <h3 class="text-sm font-semibold text-slate-700 mb-2">Distribución por día</h3>
-          <div class="flex items-end gap-1 h-24">
-            <div *ngFor="let d of byDay()"
-                 class="flex-1 flex flex-col items-center justify-end gap-1 min-w-0">
-              <div class="w-full bg-brand-500 rounded-sm transition-all"
-                   [style.height.%]="d.pct"
-                   [title]="d.label + ': ' + (d.amount | currency:ps.currency():'symbol':'1.2-2')">
-              </div>
-            </div>
-          </div>
-          <div class="flex gap-1 mt-1">
-            <div *ngFor="let d of byDay()"
-                 class="flex-1 text-[10px] text-slate-500 text-center min-w-0 truncate">
-              {{ d.label }}
-            </div>
-          </div>
+        <div class="mt-5" *ngIf="topDays().length">
+          <h3 class="text-sm font-semibold text-slate-700 mb-2">Días con más gasto</h3>
+          <ul class="divide-y divide-slate-100">
+            <li *ngFor="let d of topDays()" class="py-2 flex items-center justify-between gap-3">
+              <span class="text-sm text-slate-700">{{ formatDay(d.date) }}</span>
+              <span class="font-medium text-slate-900 shrink-0">
+                {{ d.amount | currency:ps.currency():'symbol':'1.2-2' }}
+              </span>
+            </li>
+          </ul>
         </div>
       </div>
 
@@ -598,28 +584,28 @@ export class PersonalComponent {
     return { total, count, avg, avgPerDay, maxAmount, topCategories };
   });
 
-  byDay = computed<DayStat[]>(() => {
-    const expenses = this.ps.monthExpenses();
-    const month = this.ps.currentMonth(); // YYYY-MM
-    const [y, m] = month.split('-').map(Number);
-    if (!y || !m) return [];
-    const lastDay = new Date(y, m, 0).getDate();
-
-    const map = new Map<string, number>();
-    for (const e of expenses) map.set(e.date, (map.get(e.date) || 0) + e.amount);
-
-    const days: { date: string; amount: number }[] = [];
-    for (let d = 1; d <= lastDay; d++) {
-      const date = `${month}-${String(d).padStart(2, '0')}`;
-      days.push({ date, amount: map.get(date) || 0 });
+  formatDay(iso: string): string {
+    try {
+      const d = new Date(iso + 'T00:00:00');
+      return d.toLocaleDateString('es-ES', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short'
+      });
+    } catch {
+      return iso;
     }
-    const max = Math.max(0, ...days.map((d) => d.amount));
-    return days.map((d) => ({
-      date: d.date,
-      amount: d.amount,
-      pct: max > 0 ? Math.round((d.amount / max) * 100) : 0,
-      label: String(parseInt(d.date.slice(-2), 10))
-    }));
+  }
+
+  topDays = computed(() => {
+    const map = new Map<string, number>();
+    for (const e of this.ps.monthExpenses()) {
+      map.set(e.date, (map.get(e.date) || 0) + e.amount);
+    }
+    return [...map.entries()]
+      .map(([date, amount]) => ({ date, amount }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 5);
   });
 
   prevMonth = computed(() => {
