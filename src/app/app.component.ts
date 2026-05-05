@@ -39,26 +39,30 @@ import { FamilyService } from './services/family.service';
 
       <nav *ngIf="!isPublic()"
            class="fixed bottom-0 inset-x-0 z-30 border-t border-slate-200 bg-white">
-        <div class="max-w-3xl mx-auto grid grid-cols-5 text-center">
+        <div class="max-w-3xl mx-auto grid grid-cols-6 text-center">
           <a routerLink="/" routerLinkActive="text-brand-600 border-t-2 border-brand-600 -mt-px"
              [routerLinkActiveOptions]="{exact: true}"
-             class="flex items-center justify-center py-3 text-xs sm:text-sm font-medium text-slate-500 hover:text-slate-900">
+             class="flex items-center justify-center py-3 text-[11px] sm:text-sm font-medium text-slate-500 hover:text-slate-900">
             Inicio
           </a>
           <a routerLink="/familia" routerLinkActive="text-brand-600 border-t-2 border-brand-600 -mt-px"
-             class="flex items-center justify-center py-3 text-xs sm:text-sm font-medium text-slate-500 hover:text-slate-900">
+             class="flex items-center justify-center py-3 text-[11px] sm:text-sm font-medium text-slate-500 hover:text-slate-900">
             Familia
           </a>
           <a routerLink="/presupuesto" routerLinkActive="text-brand-600 border-t-2 border-brand-600 -mt-px"
-             class="flex items-center justify-center py-3 text-xs sm:text-sm font-medium text-slate-500 hover:text-slate-900">
-            Presupuesto
+             class="flex items-center justify-center py-3 text-[11px] sm:text-sm font-medium text-slate-500 hover:text-slate-900">
+            Presup.
           </a>
           <a routerLink="/personal" routerLinkActive="text-brand-600 border-t-2 border-brand-600 -mt-px"
-             class="flex items-center justify-center py-3 text-xs sm:text-sm font-medium text-slate-500 hover:text-slate-900">
+             class="flex items-center justify-center py-3 text-[11px] sm:text-sm font-medium text-slate-500 hover:text-slate-900">
             Personal
           </a>
+          <a routerLink="/viajes" routerLinkActive="text-brand-600 border-t-2 border-brand-600 -mt-px"
+             class="flex items-center justify-center py-3 text-[11px] sm:text-sm font-medium text-slate-500 hover:text-slate-900">
+            Viajes
+          </a>
           <a routerLink="/resumen" routerLinkActive="text-brand-600 border-t-2 border-brand-600 -mt-px"
-             class="flex items-center justify-center py-3 text-xs sm:text-sm font-medium text-slate-500 hover:text-slate-900">
+             class="flex items-center justify-center py-3 text-[11px] sm:text-sm font-medium text-slate-500 hover:text-slate-900">
             Resumen
           </a>
         </div>
@@ -80,6 +84,11 @@ export class AppComponent {
 
   isPublic = computed(() => {
     const u = this.url() || '';
-    return u.startsWith('/aporta') || u.startsWith('/pagar/') || u.startsWith('/gastar');
+    return (
+      u.startsWith('/aporta') ||
+      u.startsWith('/pagar/') ||
+      u.startsWith('/gastar') ||
+      /^\/viaje\/[^/]+/.test(u)
+    );
   });
 }

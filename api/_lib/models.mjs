@@ -127,3 +127,64 @@ PersonalExpenseSchema.set('toJSON', {
 });
 export const PersonalExpense =
   mongoose.models.PersonalExpense || mongoose.model('PersonalExpense', PersonalExpenseSchema);
+
+const TripParticipantSchema = new Schema(
+  {
+    memberId: { type: String, required: true },
+    budget: { type: Number, default: 0 }
+  },
+  { _id: false }
+);
+
+const TripSchema = new Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    startDate: { type: String },
+    endDate: { type: String },
+    currency: { type: String, default: 'USD' },
+    participants: { type: [TripParticipantSchema], default: [] }
+  },
+  { timestamps: true }
+);
+TripSchema.set('toJSON', {
+  versionKey: false,
+  transform: (_d, ret) => {
+    ret.id = ret._id.toString();
+    delete ret._id;
+    if (ret.createdAt instanceof Date) ret.createdAt = ret.createdAt.toISOString();
+    delete ret.updatedAt;
+  }
+});
+export const Trip = mongoose.models.Trip || mongoose.model('Trip', TripSchema);
+
+const ExpenseSplitSchema = new Schema(
+  {
+    memberId: { type: String, required: true },
+    amount: { type: Number, required: true }
+  },
+  { _id: false }
+);
+
+const TripExpenseSchema = new Schema(
+  {
+    tripId: { type: String, required: true, index: true },
+    payerId: { type: String, required: true },
+    amount: { type: Number, required: true },
+    date: { type: String, required: true },
+    description: { type: String },
+    shared: { type: Boolean, default: false },
+    splits: { type: [ExpenseSplitSchema], default: [] }
+  },
+  { timestamps: true }
+);
+TripExpenseSchema.set('toJSON', {
+  versionKey: false,
+  transform: (_d, ret) => {
+    ret.id = ret._id.toString();
+    delete ret._id;
+    if (ret.createdAt instanceof Date) ret.createdAt = ret.createdAt.toISOString();
+    delete ret.updatedAt;
+  }
+});
+export const TripExpense =
+  mongoose.models.TripExpense || mongoose.model('TripExpense', TripExpenseSchema);

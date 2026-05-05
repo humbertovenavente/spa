@@ -6,7 +6,9 @@ import {
   Payment,
   Settings,
   PersonalProfile,
-  PersonalExpense
+  PersonalExpense,
+  Trip,
+  TripExpense
 } from './models.mjs';
 
 const DEFAULT_ALLOWED_ORIGINS = [
@@ -279,6 +281,121 @@ app.delete(
   '/api/personal/expenses/:id',
   wrap(async (req, res) => {
     await PersonalExpense.findByIdAndDelete(req.params.id);
+    res.status(204).end();
+  })
+);
+
+// ----- Trips -----
+
+app.get(
+  '/api/trips',
+  wrap(async (_req, res) => {
+    const trips = await Trip.find().sort({ createdAt: -1 });
+    res.json(trips.map((t) => t.toJSON()));
+  })
+);
+
+app.post(
+  '/api/trips',
+  wrap(async (req, res) => {
+    const { name, startDate, endDate, currency, participants } = req.body;
+    if (!name) return res.status(400).json({ error: 'Falta nombre' });
+    const list = (participants || []).map((p) => ({
+      memberId: String(p.memberId),
+      budget: Number(p.budget) || 0
+    }));
+    const t = await Trip.create({
+      name,
+      startDate,
+      endDate,
+      currency: currency || 'USD',
+      participants: list
+    });
+    res.status(201).json(t.toJSON());
+  })
+);
+
+app.get(
+  '/api/trips/:id',
+  wrap(async (req, res) => {
+    const t = await Trip.findById(req.params.id);
+    if (!t) return res.status(404).json({ error: 'Viaje no encontrado' });
+    const expenses = await TripExpense.find({ tripId: t._id.toString() }).sort({
+      date: -1,
+      createdAt: -1
+    });
+    res.json({ ...t.toJSON(), expenses: expenses.map((e) => e.toJSON()) });
+  })
+);
+
+app.patch(
+  '/api/trips/:id',
+  wrap(async (req, res) => {
+    const t = await Trip.findById(req.params.id);
+    if (!t) return res.status(404).json({ error: 'Viaje no encontrado' });
+    const { name, startDate, endDate, currency, participants } = req.body;
+    if (name != null) t.name = String(name);
+    if (startDate !== undefined) t.startDate = startDate || undefined;
+    if (endDate !== undefined) t.endDate = endDate || undefined;
+    if (currency) t.currency = currency;
+    if (Array.isArray(participants)) {
+      t.participants = participants.map((p) => ({
+        memberId: String(p.memberId),
+        budget: Number(p.budget) || 0
+      }));
+    }
+    await t.save();
+    res.json(t.toJSON());
+  })
+);
+
+app.delete(
+  '/api/trips/:id',
+  wrap(async (req, res) => {
+    const id = req.params.id;
+    await Trip.findByIdAndDelete(id);
+    await TripExpense.deleteMany({ tripId: id });
+    res.status(204).end();
+  })
+);
+
+app.post(
+  '/api/trips/:id/expenses',
+  wrap(async (req, res) => {
+    const tripId = req.params.id;
+    const { payerId, amount, date, description, shared, splits } = req.body;
+    if (!payerId || amount == null || !date) {
+      return res.status(400).json({ error: 'Faltan campos del gasto' });
+    }
+    let s = Array.isArray(splits) ? splits : [];
+    if (s.length === 0) {
+      s = [{ memberId: payerId, amount: Number(amount) }];
+    } else {
+      s = s.map((x) => ({
+        memberId: String(x.memberId),
+        amount: Number(x.amount) || 0
+      }));
+    }
+    const e = await TripExpense.create({
+      tripId,
+      payerId,
+      amount: Number(amount),
+      date,
+      description,
+      shared: !!shared,
+      splits: s
+    });
+    res.status(201).json(e.toJSON());
+  })
+);
+
+app.delete(
+  '/api/trips/:tripId/expenses/:id',
+  wrap(async (req, res) => {
+    await TripExpense.findOneAndDelete({
+      _id: req.params.id,
+      tripId: req.params.tripId
+    });
     res.status(204).end();
   })
 );
