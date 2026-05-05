@@ -3,5 +3,9 @@
   "buildCommand": "ng build",
   "outputDirectory": "dist/gastos-familiares/browser",
   "installCommand": "npm install",
-  "framework": null
+  "framework": null,
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api" },
+    { "source": "/api", "destination": "/api" }
+  ]
 }
