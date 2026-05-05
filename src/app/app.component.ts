@@ -17,8 +17,7 @@ import { FamilyService } from './services/family.service';
         </div>
         <div *ngIf="fs.loadError() as err"
              class="bg-amber-50 border-t border-amber-200 text-amber-800 text-xs px-4 py-2 text-center">
-          {{ err }}. Verifica que el backend esté corriendo en
-          <code class="font-mono">localhost:3001</code>.
+          {{ err }}.
           <button type="button" class="ml-2 underline font-medium" (click)="fs.refresh()">Reintentar</button>
         </div>
       </header>

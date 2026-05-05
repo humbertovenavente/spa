@@ -8,7 +8,29 @@ import { Payment } from './models/Payment.js';
 import { Settings } from './models/Settings.js';
 
 const app = express();
-app.use(cors());
+
+const DEFAULT_ALLOWED_ORIGINS = [
+  'http://localhost:4200',
+  'http://localhost:3000',
+  'http://127.0.0.1:4200',
+  'https://spa-pink-nine.vercel.app'
+];
+const ENV_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+const ALLOWED_ORIGINS = ENV_ORIGINS.length ? ENV_ORIGINS : DEFAULT_ALLOWED_ORIGINS;
+
+app.use(
+  cors({
+    origin(origin, cb) {
+      if (!origin) return cb(null, true); // curl, mobile webview, server-to-server
+      if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+      return cb(new Error(`Origen no permitido: ${origin}`));
+    }
+  })
+);
+
 app.use(express.json({ limit: '12mb' }));
 
 async function getSettings() {
